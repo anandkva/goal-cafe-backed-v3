@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"goal-cafe-backend/models"
+	"os"
 
 	"github.com/dgrijalva/jwt-go"
 	"go.mongodb.org/mongo-driver/bson"
@@ -16,7 +17,8 @@ func GenerateJWTToken(user models.User) (string, error) {
 		"email":  user.Email,
 		"role":   user.Role,
 	})
-	tokenString, err := token.SignedString([]byte("Goal-Cafe"))
+	secretCode := os.Getenv("SECRET_KEY")
+	tokenString, err := token.SignedString([]byte(secretCode))
 	if err != nil {
 		return "", err
 	}

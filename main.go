@@ -7,9 +7,14 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		panic("Error loading .env file")
+	}
+
 	app := gin.Default()
 
 	config.ConnectDB()

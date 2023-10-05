@@ -50,7 +50,7 @@ func Register(ctx *gin.Context) {
 		User:    newUser,
 	}
 
-	ctx.JSON(http.StatusCreated, response)
+	ctx.JSON(statusCreated, response)
 }
 
 func Login(ctx *gin.Context) {
@@ -82,5 +82,5 @@ func Login(ctx *gin.Context) {
 	}
 
 	response := gin.H{"code": 1, "user": user, "token": token}
-	ctx.JSON(http.StatusOK, response)
+	ctx.JSON(statusOK, response)
 }
