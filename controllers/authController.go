@@ -1,92 +1,78 @@
 package controllers
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"goal-cafe-backend/config"
 	"goal-cafe-backend/models"
+	"goal-cafe-backend/services"
 	"goal-cafe-backend/utils"
 )
 
-// Register handles user registration.
-func Register(c *gin.Context) {
-	var newUser models.User
-	fmt.Printf("newUser: %v", newUser)
-	if err := c.ShouldBindJSON(&newUser); err != nil {
+const (
+	statusCreated = http.StatusCreated
+	statusOK      = http.StatusOK
+)
 
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+func Register(ctx *gin.Context) {
+	var newUser models.User
+	if err := ctx.ShouldBindJSON(&newUser); err != nil {
+		utils.HandleBadRequest(ctx, err)
 		return
 	}
 
 	collection := config.DB.Collection("users")
 
-	// Check if the user with the provided email already exists
-	existingUser := models.User{}
-	err := collection.FindOne(context.TODO(), bson.M{"email": newUser.Email}).Decode(&existingUser)
-	if err == nil {
-		c.JSON(http.StatusConflict, gin.H{"code": 2, "message": "Email address already registered"})
-		return
-	}
-	fmt.Printf("User::%v", newUser)
-	_, err = collection.InsertOne(context.TODO(), newUser)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+	if utils.UserExists(collection, newUser.Email) {
+		utils.HandleConflict(ctx, "Email address already registered")
 		return
 	}
 
-	message := models.RegisterMessage{
+	if err := utils.InsertUser(collection, newUser); err != nil {
+		utils.HandleInternalServerError(ctx, "Failed to create user")
+		return
+	}
+
+	response := models.RegisterMessage{
 		Code:    1,
 		Message: "User created successfully",
 		User:    newUser,
 	}
 
-	c.JSON(http.StatusCreated, message)
+	ctx.JSON(statusCreated, response)
 }
 
-func Login(c *gin.Context) {
+func Login(ctx *gin.Context) {
 	var loginRequest models.LoginUser
-	if err := c.ShouldBindJSON(&loginRequest); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := ctx.ShouldBindJSON(&loginRequest); err != nil {
+		utils.HandleBadRequest(ctx, err)
 		return
 	}
 
-	collection := config.DB.Collection("users")
-	user := models.User{}
-
-	// Check if the user with the provided email exists
-	err := collection.FindOne(context.TODO(), bson.M{"email": loginRequest.Email}).Decode(&user)
+	user, err := services.GetUserByEmail(loginRequest.Email)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			c.JSON(http.StatusUnauthorized, gin.H{"code": 2, "message": "User not found"})
+			utils.HandleUnauthorizedError(ctx, "User not found")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to query the database"})
+			utils.HandleInternalServerError(ctx, "Failed to query the database")
 		}
 		return
 	}
 
-	// Without hashing, simply compare the stored password with the login request password
-	storedPassword := string(user.Password)
-	loginPassword := loginRequest.Password
-
-	if storedPassword != loginPassword {
-		// Passwords don't match
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+	if !utils.IsPasswordValid(loginRequest.Password, user.Password) {
+		utils.HandleUnauthorizedError(ctx, "Invalid credentials")
 		return
 	}
 
-	// Generate a JWT token
-	token, err := utils.GenerateJWTToken(user)
+	token, err := utils.GenerateJWTToken(*user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		utils.HandleInternalServerError(ctx, "Failed to generate token")
 		return
 	}
 
-	// Send the token as a response
-	c.JSON(http.StatusOK, gin.H{"code": 1, "user": user, "token": token})
+	response := gin.H{"code": 1, "user": user, "token": token}
+	ctx.JSON(statusOK, response)
 }
