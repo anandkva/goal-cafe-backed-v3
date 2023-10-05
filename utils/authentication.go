@@ -7,12 +7,14 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func GenerateJWTToken(user models.User) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userId": user.ID,
 		"email":  user.Email,
+		"role":   user.Role,
 	})
 	tokenString, err := token.SignedString([]byte("Goal-Cafe"))
 	if err != nil {
@@ -33,10 +35,15 @@ func InsertUser(collection *mongo.Collection, user models.User) error {
 	return err
 }
 
-func IsPasswordValid(inputPassword string, storedPasswordHash string) bool {
-	// Implement password hashing and verification logic here.
-	// Use a secure password hashing library like bcrypt.
-	// For example:
-	// return bcrypt.CompareHashAndPassword([]byte(storedPasswordHash), []byte(inputPassword)) == nil
-	return inputPassword == storedPasswordHash // For demonstration purposes only, not secure
+func HashPassword(password string) (string, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hashedPassword), nil
+}
+
+func ComparePasswords(providedPassword string, hashedPassword string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(providedPassword))
+	return err == nil
 }

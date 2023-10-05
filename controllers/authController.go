@@ -31,6 +31,14 @@ func Register(ctx *gin.Context) {
 		return
 	}
 
+	hashedPassword, err := utils.HashPassword(newUser.Password)
+	if err != nil {
+		utils.HandleInternalServerError(ctx, "Failed to create user")
+		return
+	}
+
+	newUser.Password = hashedPassword
+
 	if err := utils.InsertUser(collection, newUser); err != nil {
 		utils.HandleInternalServerError(ctx, "Failed to create user")
 		return
@@ -42,7 +50,7 @@ func Register(ctx *gin.Context) {
 		User:    newUser,
 	}
 
-	ctx.JSON(statusCreated, response)
+	ctx.JSON(http.StatusCreated, response)
 }
 
 func Login(ctx *gin.Context) {
@@ -62,7 +70,7 @@ func Login(ctx *gin.Context) {
 		return
 	}
 
-	if !utils.IsPasswordValid(loginRequest.Password, user.Password) {
+	if !utils.ComparePasswords(loginRequest.Password, user.Password) {
 		utils.HandleUnauthorizedError(ctx, "Invalid credentials")
 		return
 	}
@@ -74,5 +82,5 @@ func Login(ctx *gin.Context) {
 	}
 
 	response := gin.H{"code": 1, "user": user, "token": token}
-	ctx.JSON(statusOK, response)
+	ctx.JSON(http.StatusOK, response)
 }
